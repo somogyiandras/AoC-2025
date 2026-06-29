@@ -65,6 +65,7 @@ executable Day7
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.21.0.0
+                    , containers
                     , mtl
 
     -- Directories containing source files.
