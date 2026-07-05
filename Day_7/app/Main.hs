@@ -104,31 +104,28 @@ solve1star :: Solver
 solve1star d = case thread (head $ startPos d) 0 d empty of
         (_, _, splits) -> splits
 
-thread2 :: Pos -> Manifold ->  ST.State (Map Pos Int) (Manifold,  Int)
+thread2 :: Pos -> Manifold ->  ST.State (Map Pos Int) Int
 thread2 pos m = do
         memoise <- ST.get
         case Map.lookup pos memoise of
-            Just val -> return (m, val)
+            Just val -> return val
             Nothing  -> do
-                (man, val) <- case currentPos of
-                    Just 'S' -> thread2 (pos .+. (2,0)) nextM
-                    Just '.' -> thread2 (pos .+. (2,0)) nextM
+                val <- case currentPos of
+                    Just 'S' -> thread2 (pos .+. (2,0)) m
+                    Just '.' -> thread2 (pos .+. (2,0)) m
                     Just '^' -> do 
-                        (leftMan, leftWorlds)   <- thread2 (pos .+. (2,(-1))) nextMS
-                        (rightMan, rightWorlds) <- thread2 (pos .+. (2,1))  nextMS
-                        return (rightMan, leftWorlds + rightWorlds)
-                    Nothing -> return (m, 1)
-                    Just '|'-> return (m, 1)
+                        leftWorlds   <- thread2 (pos .+. (2,(-1))) m
+                        rightWorlds  <- thread2 (pos .+. (2,1)) m
+                        return (leftWorlds + rightWorlds)
+                    Nothing -> return 1
                 ST.modify (Map.insert pos val)
-                return (man, val)
+                return val
 
         where
             currentPos = Map.lookup pos m
-            nextM = addBeam (pos .+. (1,0)) $ addBeam pos m
-            nextMS = splitBeam pos m
 
 solve2star :: Solver
-solve2star d = snd $ ST.evalState (thread2 (head $ startPos d) d) (fromList [])
+solve2star d = ST.evalState (thread2 (head $ startPos d) d) (fromList [])
 
 
 main :: IO ()
