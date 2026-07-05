@@ -4,8 +4,11 @@ module Main where
 -- import                  Text.ParserCombinators.ReadP
 -- import                  Text.Read (readMaybe)
 import                  Data.Map (fromList, toList, findMax, keys, Map, adjust)
-import qualified        Data.Map  as Map (filter, lookup)
+import qualified        Data.Map  as Map (filter, lookup, insert)
 import                  Data.Set (Set, member, insert, empty)
+import                  Data.Maybe (isNothing)
+import qualified        Control.Monad.State as ST
+
 
 -----------------------------------------------------------------
 -- functions to run the solver
@@ -24,8 +27,8 @@ programMatrix =
         [
         (testFile,      "1st star - Test: ",    parser,         solve1star)
       , (puzzleFile,    "1st star - Puzzle: ",  parser,         solve1star)
---      , (testFile,      "2nd star - Test: ",    parser,         solve2star)
---      , (puzzleFile,    "2nd star - Puzzle: ",  parser,         solve2star)
+      , (testFile,      "2nd star - Test: ",    parser,         solve2star)
+      , (puzzleFile,    "2nd star - Puzzle: ",  parser,         solve2star)
         ]
 
 
@@ -54,6 +57,9 @@ renderManifold m = mapM_ putStrLn [[c | ((x,_),c) <- toList m, x==i ]|i<-[0..fst
 headM :: Manifold -> Line
 headM m = [c | ((x,_),c) <- toList m, x==0 ] 
 
+sliceM :: Int -> Manifold -> Manifold
+sliceM n m = fromList $ [((x,y),c) | ((x,y),c) <- toList m, i<-[0..n], x==i]
+
 startPos :: Manifold -> [Pos]
 startPos = keys . Map.filter (=='S')
 
@@ -68,9 +74,6 @@ splitBeam pos m =
             m3  = adjust (const '|') (pos .+. (1,1))    m2
         in        adjust (const '|') (pos .+. (1,(-1))) m3
              
-
-
-
 thread :: Pos -> Int -> Manifold -> Set Pos -> (Set Pos, Manifold, Int)
 thread pos splits m seen
         | member pos seen = (seen, m, splits)
@@ -101,10 +104,32 @@ solve1star :: Solver
 solve1star d = case thread (head $ startPos d) 0 d empty of
         (_, _, splits) -> splits
 
-{-
+thread2 :: Pos -> Manifold ->  ST.State (Map Pos Int) (Manifold,  Int)
+thread2 pos m = do
+        memoise <- ST.get
+        case Map.lookup pos memoise of
+            Just val -> return (m, val)
+            Nothing  -> do
+                (man, val) <- case currentPos of
+                    Just 'S' -> thread2 (pos .+. (2,0)) nextM
+                    Just '.' -> thread2 (pos .+. (2,0)) nextM
+                    Just '^' -> do 
+                        (leftMan, leftWorlds)   <- thread2 (pos .+. (2,(-1))) nextMS
+                        (rightMan, rightWorlds) <- thread2 (pos .+. (2,1))  nextMS
+                        return (rightMan, leftWorlds + rightWorlds)
+                    Nothing -> return (m, 1)
+                    Just '|'-> return (m, 1)
+                ST.modify (Map.insert pos val)
+                return (man, val)
+
+        where
+            currentPos = Map.lookup pos m
+            nextM = addBeam (pos .+. (1,0)) $ addBeam pos m
+            nextMS = splitBeam pos m
+
 solve2star :: Solver
-solve2star d = length $ propagateD2 d
--}
+solve2star d = snd $ ST.evalState (thread2 (head $ startPos d) d) (fromList [])
+
 
 main :: IO ()
 main = do
