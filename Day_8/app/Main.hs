@@ -6,7 +6,7 @@ module Main where
 
 import                  Data.Set (Set, singleton, member, 
                                   fromList, toAscList, 
-                                  unions, elems)
+                                  unions, elems, size)
 import                  Data.List.HT (partition)
 import                  Data.List (sortBy)
 import                  Data.Char (isDigit)
@@ -72,7 +72,7 @@ parsePos = do
     return Pos {x=x, y=y, z=z}
 
 instance Ord Pos where
-    compare = compare `on` lengthPos
+    compare (Pos x1 y1 z1) (Pos x2 y2 z2) = compare (x1, y1, z1) (x2, y2, z2)
 
 distPos :: Pos -> Pos -> Double
 distPos p1 p2 = sqrt (fromIntegral ((x p1 - x p2)^2
@@ -115,7 +115,7 @@ connectSet s ss =
         let (contains, others) = partition 
                                 (\ set -> let as = elems s
                                               in any ( `member` set) as)
-                                 (s : ss)
+                                 ss
             in if not $ null contains
                 then Just $ (unions contains) : others
                 else Nothing
@@ -143,7 +143,7 @@ solve1star d =
         let cl = closestPairs 10 d
             startCircuits = cl ++ initCircuits d
             endCircuits = fixPass startCircuits
-        in product $ map length $ take 3 $ sortBy (compare `on` length) endCircuits
+        in product $ map size $ take 3 $ sortBy (compare `on` size) endCircuits
 
 main :: IO ()
 main = do
