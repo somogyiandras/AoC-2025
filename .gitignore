@@ -1,4 +1,4 @@
 dist-newstyle/
 *.vim
 *.o
-Main*
+Main
