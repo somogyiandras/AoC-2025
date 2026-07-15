@@ -32,7 +32,7 @@ programMatrix :: [(FilePath, String, Parser, Solver)]
 programMatrix =
         [
         (testFile,      "1st star - Test: ",    parser,         solve1star)
---      , (puzzleFile,    "1st star - Puzzle: ",  parser,         solve1star)
+      , (puzzleFile,    "1st star - Puzzle: ",  parser,         solve1000star)
 --      , (testFile,      "2nd star - Test: ",    parser,         solve2star)
 --      , (puzzleFile,    "2nd star - Puzzle: ",  parser,         solve2star)
         ]
@@ -117,7 +117,7 @@ connectSet s ss =
                                               in any ( `member` set) as)
                                  ss
             in if not $ null contains
-                then Just $ (unions contains) : others
+                then Just $ (unions (s : contains)) : others
                 else Nothing
 
 pass :: Ord a => [Set a] -> Maybe [Set a]
@@ -143,7 +143,14 @@ solve1star d =
         let cl = closestPairs 10 d
             startCircuits = cl ++ initCircuits d
             endCircuits = fixPass startCircuits
-        in product $ map size $ take 3 $ sortBy (compare `on` size) endCircuits
+        in product $ map size $ take 3 $ reverse $ sortBy (compare `on` size) endCircuits
+
+solve1000star :: Solver
+solve1000star d =
+        let cl = closestPairs 1000 d
+            startCircuits = cl ++ initCircuits d
+            endCircuits = fixPass startCircuits
+        in product $ map size $ take 3 $ reverse $ sortBy (compare `on` size) endCircuits
 
 main :: IO ()
 main = do
