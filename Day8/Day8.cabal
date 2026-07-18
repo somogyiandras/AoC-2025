@@ -11,7 +11,7 @@ cabal-version:      3.12
 --   http://haskell.org/cabal/users-guide/
 --
 -- The name of the package.
-name:               Day_8
+name:               Day8
 
 -- The package version.
 -- See the Haskell package versioning policy (PVP) for standards

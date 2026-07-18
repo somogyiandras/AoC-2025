@@ -1,30 +1,38 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Main where
 
 import                  Data.Set (Set, singleton, member, 
                                   fromList, toAscList, 
-                                  unions, elems, size)
+                                  unions, elems)
 import                  Data.List.HT (partition)
 import                  Data.List (sortBy)
 import                  Data.Char (isDigit)
 import                  Text.ParserCombinators.ReadP
 import                  Data.Function (on)
+import                  Data.Maybe (fromJust)
 
 
 --
 -----------------------------------------------------------------
 -- functions to run the solver
 -----------------------------------------------------------------
-type Parser = Config -> IO Data
-type Solver = Config -> Data -> Int
+testFile :: FilePath
+testFile = "Day_8_test_data.txt"
 
-programMatrix :: [(Config, String, Parser, Solver)]
+puzzleFile :: FilePath
+puzzleFile = "Day_8_puzzle_data.txt"
+
+type Parser = FilePath -> IO Data
+type Solver = Data -> Int
+
+programMatrix :: [(FilePath, String, Parser, Solver)]
 programMatrix =
         [
-        (testConfig,      "1st star - Test: ",    parser,         solve1stStar)
-      , (puzzleConfig,    "1st star - Puzzle: ",  parser,         solve1stStar)
+        (testFile,      "1st star - Test: ",    parser,         solve1star)
+--      , (puzzleFile,    "1st star - Puzzle: ",  parser,         solve1star)
 --      , (testFile,      "2nd star - Test: ",    parser,         solve2star)
 --      , (puzzleFile,    "2nd star - Puzzle: ",  parser,         solve2star)
         ]
@@ -45,12 +53,6 @@ test = do
 ------------------------------------------------------------------
 -- Main data structures, functions
 ------------------------------------------------------------------
-
-data Config = Config
-    { fileName  :: FilePath
-    , pairCount :: Int
-    }
-
 data Pos = Pos { x, y, z :: Int } deriving (Eq)
 type Data = [Pos]
 
@@ -62,15 +64,15 @@ instance Read Pos where
 
 parsePos :: ReadP Pos
 parsePos = do
-    x <- read <$> munch1 isDigit
+    x <- fmap read $ munch1 isDigit
     _ <- char ','
-    y <- read <$> munch1 isDigit
+    y <- fmap read $ munch1 isDigit
     _ <- char ','
-    z <- read <$> munch1 isDigit
+    z <- fmap read $ munch1 isDigit
     return Pos {x=x, y=y, z=z}
 
 instance Ord Pos where
-    compare (Pos x1 y1 z1) (Pos x2 y2 z2) = compare (x1, y1, z1) (x2, y2, z2)
+    compare = compare `on` lengthPos
 
 distPos :: Pos -> Pos -> Double
 distPos p1 p2 = sqrt (fromIntegral ((x p1 - x p2)^2
@@ -82,7 +84,7 @@ origo = Pos {x=0, y=0, z=0}
 lengthPos :: Pos -> Double
 lengthPos = distPos origo
 
-newtype Pair a = Pair (a, a) deriving Show
+data Pair a = Pair (a, a) deriving Show
 
 instance Eq a =>Eq (Pair a) where
     (Pair (x1, y1)) == (Pair (x2, y2)) = (x1==x2 && y1==y2) || (x1==y2 && y1==x2)
@@ -113,9 +115,9 @@ connectSet s ss =
         let (contains, others) = partition 
                                 (\ set -> let as = elems s
                                               in any ( `member` set) as)
-                                 ss
+                                 (s : ss)
             in if not $ null contains
-                then Just $ unions (s : contains) : others
+                then Just $ (unions contains) : others
                 else Nothing
 
 pass :: Ord a => [Set a] -> Maybe [Set a]
@@ -127,48 +129,28 @@ pass (s:ss) = case connectSet s ss of
                             Just zs -> Just (s:zs)
 
 fixPass :: Ord a => [Set a] -> [Set a]
-fixPass ss = maybe ss fixPass (pass ss)
-            {-
-            case pass ss of
+fixPass ss = case pass ss of
             Nothing -> ss
             Just ss' ->  fixPass ss'
-            -}
 
-parser :: Config -> IO Data
-parser c = do
-        s <- readFile $ fileName c
+parser :: FilePath -> IO Data
+parser f = do
+        s <- readFile f
         return $ map read $ lines s
 
-solve1stStar :: Solver
-solve1stStar c d =
-        let cl = closestPairs (pairCount c)  d
+solve1star :: Solver
+solve1star d =
+        let cl = closestPairs 10 d
             startCircuits = cl ++ initCircuits d
             endCircuits = fixPass startCircuits
-        in product $ map size $ take 3 $ sortBy (flip (compare `on` size)) endCircuits
-
-
------------------------------------------------------------------------------------
--- Main part: parameters for the problems
---
-
-testFile :: FilePath
-testFile = "Day_8_test_data.txt"
-
-testConfig :: Config
-testConfig = Config {fileName = testFile, pairCount = 10}
-
-puzzleFile :: FilePath
-puzzleFile = "Day_8_puzzle_data.txt"
-
-puzzleConfig :: Config
-puzzleConfig = Config {fileName = puzzleFile, pairCount = 1000}
+        in product $ map length $ take 3 $ sortBy (compare `on` length) endCircuits
 
 main :: IO ()
 main = do
         mapM_
-            (\(c, mess, p, m) -> do
-                            s<- p c
+            (\(f, mess, p, m) -> do
+                            s<-p f
                             putStrLn $ mess ++
-                                            show (m c s)
+                                            show (m s)
             )
             programMatrix

@@ -1,3 +1,4 @@
-projects:
-  libAoC/
-  Day_8/
+packages:
+  ./libAoC/*.cabal
+  ./Day8
+
