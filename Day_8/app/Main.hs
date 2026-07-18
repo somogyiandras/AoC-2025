@@ -1,6 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiWayIf #-}
 
 module Main where
 
@@ -12,27 +11,20 @@ import                  Data.List (sortBy)
 import                  Data.Char (isDigit)
 import                  Text.ParserCombinators.ReadP
 import                  Data.Function (on)
-import                  Data.Maybe (fromJust)
 
 
 --
 -----------------------------------------------------------------
 -- functions to run the solver
 -----------------------------------------------------------------
-testFile :: FilePath
-testFile = "Day_8_test_data.txt"
+type Parser = Config -> IO Data
+type Solver = Config -> Data -> Int
 
-puzzleFile :: FilePath
-puzzleFile = "Day_8_puzzle_data.txt"
-
-type Parser = FilePath -> IO Data
-type Solver = Data -> Int
-
-programMatrix :: [(FilePath, String, Parser, Solver)]
+programMatrix :: [(Config, String, Parser, Solver)]
 programMatrix =
         [
-        (testFile,      "1st star - Test: ",    parser,         solve1star)
-      , (puzzleFile,    "1st star - Puzzle: ",  parser,         solve1000star)
+        (testConfig,      "1st star - Test: ",    parser,         solve1stStar)
+      , (puzzleConfig,    "1st star - Puzzle: ",  parser,         solve1stStar)
 --      , (testFile,      "2nd star - Test: ",    parser,         solve2star)
 --      , (puzzleFile,    "2nd star - Puzzle: ",  parser,         solve2star)
         ]
@@ -53,6 +45,12 @@ test = do
 ------------------------------------------------------------------
 -- Main data structures, functions
 ------------------------------------------------------------------
+
+data Config = Config
+    { fileName  :: FilePath
+    , pairCount :: Int
+    }
+
 data Pos = Pos { x, y, z :: Int } deriving (Eq)
 type Data = [Pos]
 
@@ -64,11 +62,11 @@ instance Read Pos where
 
 parsePos :: ReadP Pos
 parsePos = do
-    x <- fmap read $ munch1 isDigit
+    x <- read <$> munch1 isDigit
     _ <- char ','
-    y <- fmap read $ munch1 isDigit
+    y <- read <$> munch1 isDigit
     _ <- char ','
-    z <- fmap read $ munch1 isDigit
+    z <- read <$> munch1 isDigit
     return Pos {x=x, y=y, z=z}
 
 instance Ord Pos where
@@ -84,7 +82,7 @@ origo = Pos {x=0, y=0, z=0}
 lengthPos :: Pos -> Double
 lengthPos = distPos origo
 
-data Pair a = Pair (a, a) deriving Show
+newtype Pair a = Pair (a, a) deriving Show
 
 instance Eq a =>Eq (Pair a) where
     (Pair (x1, y1)) == (Pair (x2, y2)) = (x1==x2 && y1==y2) || (x1==y2 && y1==x2)
@@ -117,7 +115,7 @@ connectSet s ss =
                                               in any ( `member` set) as)
                                  ss
             in if not $ null contains
-                then Just $ (unions (s : contains)) : others
+                then Just $ unions (s : contains) : others
                 else Nothing
 
 pass :: Ord a => [Set a] -> Maybe [Set a]
@@ -129,35 +127,48 @@ pass (s:ss) = case connectSet s ss of
                             Just zs -> Just (s:zs)
 
 fixPass :: Ord a => [Set a] -> [Set a]
-fixPass ss = case pass ss of
+fixPass ss = maybe ss fixPass (pass ss)
+            {-
+            case pass ss of
             Nothing -> ss
             Just ss' ->  fixPass ss'
+            -}
 
-parser :: FilePath -> IO Data
-parser f = do
-        s <- readFile f
+parser :: Config -> IO Data
+parser c = do
+        s <- readFile $ fileName c
         return $ map read $ lines s
 
-solve1star :: Solver
-solve1star d =
-        let cl = closestPairs 10 d
+solve1stStar :: Solver
+solve1stStar c d =
+        let cl = closestPairs (pairCount c)  d
             startCircuits = cl ++ initCircuits d
             endCircuits = fixPass startCircuits
-        in product $ map size $ take 3 $ reverse $ sortBy (compare `on` size) endCircuits
+        in product $ map size $ take 3 $ sortBy (flip (compare `on` size)) endCircuits
 
-solve1000star :: Solver
-solve1000star d =
-        let cl = closestPairs 1000 d
-            startCircuits = cl ++ initCircuits d
-            endCircuits = fixPass startCircuits
-        in product $ map size $ take 3 $ reverse $ sortBy (compare `on` size) endCircuits
+
+-----------------------------------------------------------------------------------
+-- Main part: parameters for the problems
+--
+
+testFile :: FilePath
+testFile = "Day_8_test_data.txt"
+
+testConfig :: Config
+testConfig = Config {fileName = testFile, pairCount = 10}
+
+puzzleFile :: FilePath
+puzzleFile = "Day_8_puzzle_data.txt"
+
+puzzleConfig :: Config
+puzzleConfig = Config {fileName = puzzleFile, pairCount = 1000}
 
 main :: IO ()
 main = do
         mapM_
-            (\(f, mess, p, m) -> do
-                            s<-p f
+            (\(c, mess, p, m) -> do
+                            s<- p c
                             putStrLn $ mess ++
-                                            show (m s)
+                                            show (m c s)
             )
             programMatrix

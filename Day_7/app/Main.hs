@@ -4,7 +4,7 @@ module Main where
 -- import                  Text.ParserCombinators.ReadP
 -- import                  Text.Read (readMaybe)
 import                  Data.Map (fromList, toList, findMax, keys, Map, adjust)
-import qualified        Data.Map  as Map (filter, lookup, insert)
+import qualified        Data.Map  as Map (filter, lookup, insert, empty)
 import                  Data.Set (Set, member, insert, empty)
 import                  Data.Maybe (isNothing)
 import qualified        Control.Monad.State as ST
@@ -70,9 +70,9 @@ splitBeam :: Pos -> Manifold -> Manifold
 splitBeam pos m =
         let
             m1  = adjust (const '|') (pos .+. (0,1))    m
-            m2  = adjust (const '|') (pos .+. (0,(-1))) m1
+            m2  = adjust (const '|') (pos .+. (0,-1)) m1
             m3  = adjust (const '|') (pos .+. (1,1))    m2
-        in        adjust (const '|') (pos .+. (1,(-1))) m3
+        in        adjust (const '|') (pos .+. (1,-1)) m3
              
 thread :: Pos -> Int -> Manifold -> Set Pos -> (Set Pos, Manifold, Int)
 thread pos splits m seen
@@ -81,17 +81,17 @@ thread pos splits m seen
         | Just '.' <- Map.lookup pos m = thread (pos .+. (2,0)) splits nextM nextSeen
         | Just '^' <- Map.lookup pos m =
             let
-                 (leftSeen, leftMan, leftSplits) = thread (pos .+. (2,(-1))) (splits+1) nextMS nextSeenSplit
-            in thread (pos .+. (2,1)) (leftSplits) leftMan leftSeen
+                 (leftSeen, leftMan, leftSplits) = thread (pos .+. (2,-1)) (splits+1) nextMS nextSeenSplit
+            in thread (pos .+. (2,1)) leftSplits leftMan leftSeen
         | Nothing  <- Map.lookup pos m = (seen, m, splits) 
 
         where
             nextSeen =  insert pos $ insert (pos .+. (1,0)) seen
             nextM = addBeam (pos .+. (1,0)) $ addBeam pos m
             nextSeenSplit = insert pos $ insert (pos .+. (1,1))
-                          $ insert (pos .+. (1,(-1)))
+                          $ insert (pos .+. (1,-1))
                           $ insert (pos .+. (0,1))
-                          $ insert (pos .+. (0,(-1))) seen
+                          $ insert (pos .+. (0,-1)) seen
             nextMS = splitBeam pos m
 
 
@@ -114,7 +114,7 @@ thread2 pos m = do
                     Just 'S' -> thread2 (pos .+. (2,0)) m
                     Just '.' -> thread2 (pos .+. (2,0)) m
                     Just '^' -> do 
-                        leftWorlds   <- thread2 (pos .+. (2,(-1))) m
+                        leftWorlds   <- thread2 (pos .+. (2,-1)) m
                         rightWorlds  <- thread2 (pos .+. (2,1)) m
                         return (leftWorlds + rightWorlds)
                     Nothing -> return 1
@@ -125,7 +125,7 @@ thread2 pos m = do
             currentPos = Map.lookup pos m
 
 solve2star :: Solver
-solve2star d = ST.evalState (thread2 (head $ startPos d) d) (fromList [])
+solve2star d = ST.evalState (thread2 (head $ startPos d) d) Map.empty
 
 
 main :: IO ()
