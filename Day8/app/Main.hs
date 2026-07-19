@@ -5,14 +5,15 @@ module Main where
 
 import AoC.Framework
 
-import                  Data.Set (Set, singleton, member, 
-                                  fromList, toAscList, 
-                                  unions, elems, size)
+import                  Data.Set (Set, singleton, member, insert,
+                                  fromList, toAscList, delete,
+                                  unions, elems, size, empty)
 import                  Data.List.HT (partition)
 import                  Data.List (sortBy)
 import                  Data.Char (isDigit)
 import                  Text.ParserCombinators.ReadP
 import                  Data.Function (on)
+import qualified        Control.Monad.State as ST
 
 
 --
@@ -58,9 +59,12 @@ instance Ord Pos where
     compare (Pos x1 y1 z1) (Pos x2 y2 z2) = compare (x1, y1, z1) (x2, y2, z2)
 
 distPos :: Pos -> Pos -> Double
-distPos p1 p2 = sqrt (fromIntegral ((x p1 - x p2)^2
-                                +(y p1 - y p2)^2
-                                +(z p1 - z p2)^2))
+distPos p1 p2 = sqrt (fromIntegral (dx*dx + dy*dy + dz*dz))
+  where
+    dx = x p1 - x p2
+    dy = y p1 - y p2
+    dz = z p1 - z p2
+
 origo :: Pos
 origo = Pos {x=0, y=0, z=0}
 
@@ -78,13 +82,11 @@ instance Ord (Pair Pos) where
 distPair :: Pair Pos -> Double
 distPair (Pair (p1, p2)) = distPos p1 p2
 
-makePairSet :: Ord a => Pair a -> Set a
-makePairSet (Pair (a,b)) = fromList [a,b]
+closestPairs :: Int -> [Pos] -> [Pair Pos]
+closestPairs n = take n . allPairs
 
-closestPairs :: Int -> [Pos] -> [Set Pos]
-closestPairs n ps = 
-        map makePairSet $
-        take n $
+allPairs :: [Pos] -> [Pair Pos]
+allPairs ps = 
         toAscList $
         fromList [Pair (p1, p2) | p1<-ps, p2<-ps, p1/=p2, p1<p2]
 
@@ -93,46 +95,57 @@ type Circuit = Set Pos
 initCircuits :: [Pos] -> [Circuit]
 initCircuits = map singleton
 
-connectSet :: Ord a => Set a -> [Set a] -> Maybe [Set a]
-connectSet s ss =
-        let (contains, others) = partition 
-                                (\ set -> let as = elems s
-                                              in any ( `member` set) as)
-                                 ss
-            in if not $ null contains
-                then Just $ unions (s : contains) : others
-                else Nothing
+-- chatGPT suggestion
+--
+mergePair :: Pair Pos -> [Circuit] -> [Circuit]
+mergePair (Pair (p1, p2)) circuits =
+        let (contains, others) = partition (\ c -> p1 `member` c || p2 `member` c) circuits
+            newCircuit = unions (fromList [p1, p2] : contains)
+        in newCircuit : others
 
-pass :: Ord a => [Set a] -> Maybe [Set a]
-pass []  = Nothing
-pass (s:ss) = case connectSet s ss of
-            Just newSets -> Just newSets
-            Nothing      -> case pass ss of
-                            Nothing -> Nothing
-                            Just zs -> Just (s:zs)
+------------------------------------------------------------------
 
-fixPass :: Ord a => [Set a] -> [Set a]
-fixPass ss = maybe ss fixPass (pass ss)
-            {-
-            case pass ss of
-            Nothing -> ss
-            Just ss' ->  fixPass ss'
-            -}
+mergePair2 :: Pair Pos -> (Maybe (Pair Pos), [Circuit]) -> (Maybe (Pair Pos), [Circuit])
+mergePair2 (Pair (p1, p2)) (_, circuits) =
+        let (contains, others) = partition (\ c -> p1 `member` c || p2 `member` c) circuits
+            newCircuit = unions (fromList [p1, p2] : contains)
+        in if null others
+            then (Just $ Pair (p1, p2), [newCircuit])
+            else (Nothing, newCircuit:others)
+
 
 parsing :: Config -> IO Data
 parsing  c = do
         s <- readFile $ fileName c
         return $ map read $ lines s
 
+
+
+solve1stStar :: Config -> Data -> Int
+solve1stStar c d =
+        let cl = closestPairs (pairCount c)  d
+            initialCircuits = initCircuits d
+            endCircuits = foldr mergePair initialCircuits cl
+        in product $ map size $ take 3 $ sortBy (flip compare `on` size) endCircuits
+
+
+{-
 solve1stStar :: Config -> Data -> Int
 solve1stStar c d =
         let cl = closestPairs (pairCount c)  d
             startCircuits = cl ++ initCircuits d
             endCircuits = fixPass startCircuits
-        in product $ map size $ take 3 $ sortBy (flip (compare `on` size)) endCircuits
+        in product $ map size $ take 3 $ sortBy (flip compare `on` size) endCircuits
+-}
 
 solve2ndStar :: Config -> Data -> Int
-solve2ndStar c d = undefined
+solve2ndStar c d =
+        let cl = allPairs d
+            initialCircuits = initCircuits d
+            (pair, endCircuits) = foldr mergePair2 (Nothing, initialCircuits) cl
+        in case pair of 
+            Nothing -> -1
+            Just (Pair (p1, p2)) -> x p1 * x p2
 
 
 -----------------------------------------------------------------------------------
